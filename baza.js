@@ -1,13 +1,5 @@
-import Database from "better-sqlite3";
+import { JSONFilePreset } from 'lowdb/node'
 
-const db = new Database ("baza.db");
+const db = await JSONFilePreset('baza.json', { notatki: [], nextId: 1 })
 
-db.exec(`
-    CREATE TABLE IF NOT EXISTS notatki (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tytul TEXT,
-        tresc TEXT
-    )
-`);
-
-export default db;
+export default db

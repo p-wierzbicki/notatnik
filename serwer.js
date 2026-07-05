@@ -7,44 +7,44 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-app.get('/',function(req, res) {
+app.get('/', function(req, res) {
     res.send('Serwer działa');
 });
 
-app.get('/notatki',function(req, res) {
-    const notatki = db.prepare('SELECT * FROM notatki').all();
-    res.json(notatki);
+app.get('/notatki', function(req, res) {
+    res.json(db.data.notatki);
 });
 
-app.post('/notatki',function(req,res) {
-    const {tytul, tresc} = req.body;
+app.post('/notatki', async function(req, res) {
+    const { tytul, tresc } = req.body;
 
     if (!tytul || !tresc) {
-        return res.status(400).json({ blad: 'brakuje danych - podaj tytul i tresc'});
+        return res.status(400).json({ blad: 'brakuje danych - podaj tytul i tresc' });
     }
-    db.prepare('INSERT INTO notatki (tytul, tresc) VALUES (?, ?)').run(tytul, tresc);
-    res.json({tytul, tresc});
-    
+
+    const notatka = { id: db.data.nextId, tytul, tresc };
+    db.data.notatki.push(notatka);
+    db.data.nextId++;
+    await db.write();
+
+    res.json(notatka);
 });
 
-app.delete('/notatki/:id',function(req,res) {
+app.delete('/notatki/:id', async function(req, res) {
     const id = Number(req.params.id);
+    const index = db.data.notatki.findIndex(n => n.id === id);
 
-    const wynik = db.prepare('DELETE FROM notatki WHERE id = ?').run(id);
-
-
-    if(wynik.changes === 0) {
-        return res.status(404).json({
-            blad: "nie znaleziono notatki z tym id"
-        });
+    if (index === -1) {
+        return res.status(404).json({ blad: 'Nie znaleziono notatki' });
     }
 
-    res.json({
-        message: "notatka usunieta"
-    });
+    db.data.notatki.splice(index, 1);
+    await db.write();
+
+    res.json({ message: 'Notatka usunieta' });
 });
 
-app.patch('/notatki/:id', function(req, res) {
+app.patch('/notatki/:id', async function(req, res) {
     const id = Number(req.params.id);
     const { tytul, tresc } = req.body;
 
@@ -52,20 +52,19 @@ app.patch('/notatki/:id', function(req, res) {
         return res.status(400).json({ blad: 'Podaj tytul lub tresc do zmiany' });
     }
 
-    const notatka = db.prepare('SELECT * FROM notatki WHERE id = ?').get(id);
+    const notatka = db.data.notatki.find(n => n.id === id);
 
     if (!notatka) {
         return res.status(404).json({ blad: 'Nie znaleziono notatki' });
     }
 
-    const nowyTytul = tytul || notatka.tytul;
-    const nowaTresc = tresc || notatka.tresc;
-
-    db.prepare('UPDATE notatki SET tytul = ?, tresc = ? WHERE id = ?').run(nowyTytul, nowaTresc, id);
+    if (tytul) notatka.tytul = tytul;
+    if (tresc) notatka.tresc = tresc;
+    await db.write();
 
     res.json({ message: 'Notatka zaktualizowana' });
 });
 
-app.listen(PORT, function(){
-    console.log(`Serwer dziala na https://localhost:${PORT}`);
+app.listen(PORT, function() {
+    console.log(`Serwer dziala na http://localhost:${PORT}`);
 });

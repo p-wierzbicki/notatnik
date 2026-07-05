@@ -1,0 +1,10 @@
+{
+  "notatki": [
+    {
+      "id": 1,
+      "tytul": "test",
+      "tresc": "pierwsza notatka"
+    }
+  ],
+  "nextId": 2
+}
