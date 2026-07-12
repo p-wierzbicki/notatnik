@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
-import db from './baza.js';
+import pool from './db.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,8 +11,9 @@ app.get('/', function(req, res) {
     res.send('Serwer działa');
 });
 
-app.get('/notatki', function(req, res) {
-    res.json(db.data.notatki);
+app.get('/notatki', async function(req, res) {
+    const wynik = await pool.query('SELECT * FROM notatki');
+    res.json(wynik.rows);
 });
 
 app.post('/notatki', async function(req, res) {
@@ -22,24 +23,22 @@ app.post('/notatki', async function(req, res) {
         return res.status(400).json({ blad: 'brakuje danych - podaj tytul i tresc' });
     }
 
-    const notatka = { id: db.data.nextId, tytul, tresc };
-    db.data.notatki.push(notatka);
-    db.data.nextId++;
-    await db.write();
+    const wynik = await pool.query(
+        'INSERT INTO notatki (tytul, tresc) VALUES ($1, $2) RETURNING *',
+        [tytul, tresc]
+    );
 
-    res.json(notatka);
+    res.json(wynik.rows[0]);
 });
 
 app.delete('/notatki/:id', async function(req, res) {
     const id = Number(req.params.id);
-    const index = db.data.notatki.findIndex(n => n.id === id);
 
-    if (index === -1) {
+    const wynik = await pool.query('DELETE FROM notatki WHERE id = $1 RETURNING *', [id]);
+
+    if (wynik.rows.length === 0) {
         return res.status(404).json({ blad: 'Nie znaleziono notatki' });
     }
-
-    db.data.notatki.splice(index, 1);
-    await db.write();
 
     res.json({ message: 'Notatka usunieta' });
 });
@@ -52,15 +51,19 @@ app.patch('/notatki/:id', async function(req, res) {
         return res.status(400).json({ blad: 'Podaj tytul lub tresc do zmiany' });
     }
 
-    const notatka = db.data.notatki.find(n => n.id === id);
+    const notatka = await pool.query('SELECT * FROM notatki WHERE id = $1', [id]);
 
-    if (!notatka) {
+    if (notatka.rows.length === 0) {
         return res.status(404).json({ blad: 'Nie znaleziono notatki' });
     }
 
-    if (tytul) notatka.tytul = tytul;
-    if (tresc) notatka.tresc = tresc;
-    await db.write();
+    const nowyTytul = tytul || notatka.rows[0].tytul;
+    const nowaTresc = tresc || notatka.rows[0].tresc;
+
+    await pool.query(
+        'UPDATE notatki SET tytul = $1, tresc = $2 WHERE id = $3',
+        [nowyTytul, nowaTresc, id]
+    );
 
     res.json({ message: 'Notatka zaktualizowana' });
 });
